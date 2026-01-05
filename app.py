@@ -7,10 +7,6 @@ import io
 app = FastAPI()
 ocr = PaddleOCR(use_angle_cls=True, lang='ch')
 
-@app.get("/health")
-async def health():
-    return {"status": "ok"}
-
 @app.post("/ocr")
 async def ocr_endpoint(request: Request):
     try:
@@ -21,8 +17,17 @@ async def ocr_endpoint(request: Request):
             return JSONResponse(status_code=400, content={"error": "Missing file field 'file'"})
 
         image_bytes = await upload.read()
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        result = ocr.ocr(image, cls=True)
+        print(f"Received file: {upload.filename}, size: {len(image_bytes)} bytes")
+
+        try:
+            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        except Exception as e:
+            return JSONResponse(status_code=400, content={"error": f"Invalid image: {str(e)}"})
+
+        try:
+            result = ocr.ocr(image, cls=True)
+        except Exception as e:
+            return JSONResponse(status_code=500, content={"error": f"OCR failed: {str(e)}"})
 
         return {
             "filename": upload.filename,
@@ -31,4 +36,4 @@ async def ocr_endpoint(request: Request):
         }
 
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        return JSONResponse(status_code=500, content={"error": f"Unhandled server error: {str(e)}"})
