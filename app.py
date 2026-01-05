@@ -1,43 +1,34 @@
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from paddleocr import PaddleOCR
 from PIL import Image
 import io
 
-# Import PaddleOCR
-from paddleocr import PaddleOCR
-
 app = FastAPI()
-ocr = PaddleOCR(use_angle_cls=True, lang='ch')  # adjust lang if needed
+ocr = PaddleOCR(use_angle_cls=True, lang='ch')
 
 @app.get("/health")
 async def health():
     return {"status": "ok"}
 
 @app.post("/ocr")
-async def ocr_endpoint(file: UploadFile = File(...)):
+async def ocr_endpoint(request: Request):
     try:
-        # Read file bytes
-        image_bytes = await file.read()
-        if not image_bytes:
-            return JSONResponse(status_code=400, content={"error": "No file content received"})
+        form = await request.form()
+        upload = form.get("file")
 
-        print(f"Received file: {file.filename}, size: {len(image_bytes)} bytes")
+        if not upload:
+            return JSONResponse(status_code=400, content={"error": "Missing file field 'file'"})
 
-        # Try to open image
-        try:
-            image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        except Exception as e:
-            return JSONResponse(status_code=400, content={"error": f"Invalid image: {str(e)}"})
-
-        # Run OCR
+        image_bytes = await upload.read()
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         result = ocr.ocr(image, cls=True)
 
         return {
-            "filename": file.filename,
+            "filename": upload.filename,
             "count": len(result[0]),
             "items": result[0]
         }
 
     except Exception as e:
-        print(f"Server error: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
