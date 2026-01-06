@@ -5,7 +5,13 @@ from PIL import Image
 import io
 
 app = FastAPI()
+
+# Initialize OCR (angle classification enabled at init, no need to pass cls later)
 ocr = PaddleOCR(use_angle_cls=True, lang='ch')
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
 
 @app.post("/ocr")
 async def ocr_endpoint(request: Request):
@@ -25,7 +31,8 @@ async def ocr_endpoint(request: Request):
             return JSONResponse(status_code=400, content={"error": f"Invalid image: {str(e)}"})
 
         try:
-            result = ocr.ocr(image, cls=True)
+            # Correct call: no cls argument here
+            result = ocr.ocr(image)
         except Exception as e:
             return JSONResponse(status_code=500, content={"error": f"OCR failed: {str(e)}"})
 
