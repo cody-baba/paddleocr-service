@@ -20,13 +20,20 @@ async def ocr_endpoint(request: Request):
         if not upload:
             return JSONResponse(status_code=400, content={"error": "Missing file field 'file'"})
 
-        # If n8n sends a string path instead of UploadFile
-        if isinstance(upload, str):
-            return JSONResponse(status_code=400, content={"error": f"Received string instead of file: {upload}"})
+        # Case 1: n8n sends a file-like object
+        if hasattr(upload, "read"):
+            image_bytes = await upload.read()
+            filename = getattr(upload, "filename", "unknown")
+        # Case 2: n8n sends a string (path or base64)
+        elif isinstance(upload, str):
+            return JSONResponse(
+                status_code=400,
+                content={"error": f"Received string instead of file: {upload}"}
+            )
+        else:
+            return JSONResponse(status_code=400, content={"error": "Unsupported upload type"})
 
-        # Otherwise treat it as a file-like object
-        image_bytes = await upload.read()
-        print(f"Received file: {getattr(upload, 'filename', 'unknown')}, size: {len(image_bytes)} bytes")
+        print(f"Received file: {filename}, size: {len(image_bytes)} bytes")
 
         try:
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
@@ -39,7 +46,7 @@ async def ocr_endpoint(request: Request):
             return JSONResponse(status_code=500, content={"error": f"OCR failed: {str(e)}"})
 
         return {
-            "filename": getattr(upload, 'filename', 'unknown'),
+            "filename": filename,
             "count": len(result[0]),
             "items": result[0]
         }
