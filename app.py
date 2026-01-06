@@ -5,8 +5,6 @@ from PIL import Image
 import io
 
 app = FastAPI()
-
-# Initialize OCR (angle classification enabled at init, no need to pass cls later)
 ocr = PaddleOCR(use_angle_cls=True, lang='ch')
 
 @app.get("/health")
@@ -22,8 +20,13 @@ async def ocr_endpoint(request: Request):
         if not upload:
             return JSONResponse(status_code=400, content={"error": "Missing file field 'file'"})
 
+        # If n8n sends a string path instead of UploadFile
+        if isinstance(upload, str):
+            return JSONResponse(status_code=400, content={"error": f"Received string instead of file: {upload}"})
+
+        # Otherwise treat it as a file-like object
         image_bytes = await upload.read()
-        print(f"Received file: {upload.filename}, size: {len(image_bytes)} bytes")
+        print(f"Received file: {getattr(upload, 'filename', 'unknown')}, size: {len(image_bytes)} bytes")
 
         try:
             image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
@@ -31,13 +34,12 @@ async def ocr_endpoint(request: Request):
             return JSONResponse(status_code=400, content={"error": f"Invalid image: {str(e)}"})
 
         try:
-            # Correct call: no cls argument here
             result = ocr.ocr(image)
         except Exception as e:
             return JSONResponse(status_code=500, content={"error": f"OCR failed: {str(e)}"})
 
         return {
-            "filename": upload.filename,
+            "filename": getattr(upload, 'filename', 'unknown'),
             "count": len(result[0]),
             "items": result[0]
         }
